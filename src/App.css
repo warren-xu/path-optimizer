@@ -55,7 +55,7 @@
   overflow-y: auto;
   background-color: #f7f7f7;
   border-left: 1px solid #ccc;
-  max-height: 360px; /* Limit the height of the container */
+  max-height: 500px; /* Limit the height of the container */
 }
 
 .instructions-container h2 {

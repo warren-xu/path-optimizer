@@ -1,7 +1,8 @@
 import React, {useState, useRef, useEffect} from "react";
-import { Autocomplete} from "@react-google-maps/api";
+import { Autocomplete, LoadScript, Libraries } from "@react-google-maps/api";
 import axios from "axios";
 
+const libraries: Libraries = ['places'];
 type MarkerMenuProps = {
     fetchMarkers: () => void;
     optimizeWaypoints: (markers: any[]) => Promise<any>;
@@ -10,8 +11,20 @@ type MarkerMenuProps = {
 const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints,}) => {
     const [address, setAddress] = useState("");
     const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+    const [apiKey, setApiKey] = useState('');
+    // Fetch API key and initial markers on component load
+  useEffect(() => {
+    const fetchApiKeyAndMarkers = async () => {
+      try {
+        const apiKeyResponse = await axios.get("http://127.0.0.1:3000/get_google_maps_key");
+        setApiKey(apiKeyResponse.data.key);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
 
-    // Handle place selection from autocomplete
+    fetchApiKeyAndMarkers();
+  }, []);
   // Triggered when the user selects a suggestion from the autocomplete
   const handlePlaceChanged = async () => {
     if (autocomplete) {
@@ -102,6 +115,7 @@ const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints
         <h1>Marker Management</h1>
         <div style={{ marginBottom: '20px' }}>
           <h2>Add a Marker</h2>
+          {apiKey && (<LoadScript googleMapsApiKey={apiKey} libraries={libraries}>
           <Autocomplete onLoad={(autocompleteInstance) => setAutocomplete(autocompleteInstance)} onPlaceChanged={handlePlaceChanged}>
           <input
             type="text"
@@ -120,6 +134,7 @@ const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints
             }}
           />
         </Autocomplete>
+        </LoadScript>)}
         </div>
   
       </div>

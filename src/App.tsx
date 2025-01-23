@@ -4,8 +4,8 @@ import polyline from "polyline";
 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
+
 import MarkerMenu from './components/MarkerMenu';
-import './vita-env.d.ts';  // environment variables
 import './App.css';
 import axios from 'axios';
 
@@ -322,7 +322,7 @@ const App = () => {
     legs: any[];
   } | null>(null);
   const [selectedStartLocation, setSelectedStartLocation] = useState<string>("");
-
+  
   const handleNextStop = async () => {
     if (currentWaypointIndex < markers.length - 1 && routeData?.legs) {
       setCurrentWaypointIndex((prevIndex) => prevIndex + 1);
