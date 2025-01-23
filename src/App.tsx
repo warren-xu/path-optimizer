@@ -469,6 +469,7 @@ const App = () => {
     if (reorderedMarkers.length > 1) {
       const updatedRouteData = await optimizeWaypoints(reorderedMarkers);
       if (updatedRouteData) {
+        setMarkers(updatedRouteData.optimizedMarkers);    // set the markers to the optimized order
         setRouteData(updatedRouteData);
       } else {
         setRouteData(null);
