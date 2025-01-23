@@ -11,6 +11,8 @@ import axios from 'axios';
 
 import mapboxgl from 'mapbox-gl';
 
+const BASE_API_URL = 'https://backend-flask-5q4c.onrender.com';
+
 const convertToGeoJSON = (encodedPolyline) => {
   // Decode the polyline into an array of [latitude, longitude] pairs
   const decodedCoordinates = polyline.decode(encodedPolyline, 5);
@@ -47,7 +49,7 @@ const optimizeWaypoints = async (waypoints: MarkerData[]) => {
     (wp) => `${wp.lat},${wp.lng}`
   ).join("|");
 
-  const url = `http://127.0.0.1:3000/directions`;
+  const url = `${BASE_API_URL}/directions`;
 
   try {
     const response = await axios.get(url, {
@@ -125,7 +127,7 @@ const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: Ma
 
     const initializeMap = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:3000/get_mapbox_token");
+        const response = await axios.get(`${BASE_API_URL}/get_mapbox_token`);
         const { mapbox_token } = response.data;
 
         if (!mapbox_token) {
@@ -335,7 +337,7 @@ const App = () => {
 
   const fetchMarkers = async () => {
     try {
-      const response = await axios.get("http://127.0.0.1:3000/get_markers");
+      const response = await axios.get(`${BASE_API_URL}/get_markers`);
       const fetchedMarkers = response.data;
       if (!selectedStartLocation) {
         setSelectedStartLocation(fetchedMarkers[0].address);
@@ -411,7 +413,7 @@ const App = () => {
   const deleteMarker = async (address: string) => {
     try {
       await axios.post(
-        "http://127.0.0.1:3000/delete_marker",
+        `${BASE_API_URL}/delete_marker`,
         { address: address },
         {
           headers: {

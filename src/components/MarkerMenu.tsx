@@ -8,6 +8,8 @@ type MarkerMenuProps = {
     optimizeWaypoints: (markers: any[]) => Promise<any>;
   }
 
+const BASE_API_URL = 'https://backend-flask-5q4c.onrender.com';
+
 const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints,}) => {
     const [address, setAddress] = useState("");
     const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
@@ -16,7 +18,7 @@ const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints
   useEffect(() => {
     const fetchApiKeyAndMarkers = async () => {
       try {
-        const apiKeyResponse = await axios.get("http://127.0.0.1:3000/get_google_maps_key");
+        const apiKeyResponse = await axios.get(`${BASE_API_URL}/get_google_maps_key`);
         setApiKey(apiKeyResponse.data.key);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -47,7 +49,7 @@ const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints
 
       try {
         // Add the marker to the backend
-        await axios.post("http://127.0.0.1:3000/add_marker", {
+        await axios.post(`${BASE_API_URL}/add_marker`, {
           address: selectedAddress,
           lat,
           lng,
@@ -59,7 +61,7 @@ const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints
         fetchMarkers();
 
         // Optimize the waypoints if there are more than one
-        const response = await axios.get("http://127.0.0.1:3000/get_markers");
+        const response = await axios.get(`${BASE_API_URL}/get_markers`);
         const updatedMarkers = response.data;
         if (updatedMarkers.length > 1) {
           await optimizeWaypoints(updatedMarkers);
@@ -77,13 +79,13 @@ const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints
       return;
     }
     try {
-      await axios.post("http://127.0.0.1:3000/add_marker", {
+      await axios.post(`${BASE_API_URL}/add_marker`, {
         address,
       });
       console.log("Marker added successfully!");
       fetchMarkers();
 
-      const response = await axios.get("http://127.0.0.1:3000/get_markers");
+      const response = await axios.get(`${BASE_API_URL}/get_markers`);
       const updatedMarkers = response.data;
 
       if (updatedMarkers.length > 1) {
@@ -95,7 +97,7 @@ const MarkerMenu: React.FC<MarkerMenuProps> = ({ fetchMarkers, optimizeWaypoints
           console.warn("Removing unreachable marker:", address);
 
           // Remove the invalid marker
-          await axios.post("http://127.0.0.1:3000/delete_marker", { address });
+          await axios.post(`${BASE_API_URL}/delete_marker`, { address });
 
           // Fetch updated markers
           fetchMarkers();
