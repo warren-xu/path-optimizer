@@ -164,7 +164,7 @@ const MapboxMap = ({
           const clickedElement = event.originalEvent.target as HTMLElement;
           const isMarkerClick = markerElementsRef.current.some((markerElement) =>
             markerElement.contains(clickedElement)
-  
+
           );
           if (isMarkerClick) {
             return;
@@ -204,7 +204,7 @@ const MapboxMap = ({
             .setLngLat([lng, lat])
             .setPopup(tempPopup)
             .addTo(map.current!);
-          
+
           tempPopup.addTo(map.current!);
 
           temporaryMarkerRef.current = tempMarker;
@@ -218,7 +218,7 @@ const MapboxMap = ({
     return () => map.current?.remove();
   }, []);
 
-  
+
 
   useEffect(() => {
     if (!map.current) return;
@@ -228,12 +228,12 @@ const MapboxMap = ({
     markerRefs.current.forEach((marker) => marker.remove());
     markerRefs.current = [];
     const closeAllPopups = () => {
-    markerPopupsRef.current.forEach((popup) => popup.remove());
-    if (temporaryMarkerRef.current) {
-      temporaryMarkerRef.current.remove();
-      temporaryMarkerRef.current = null;
-    }
-  };
+      markerPopupsRef.current.forEach((popup) => popup.remove());
+      if (temporaryMarkerRef.current) {
+        temporaryMarkerRef.current.remove();
+        temporaryMarkerRef.current = null;
+      }
+    };
 
     // Add markers from the markers array
     markers.forEach((marker, index) => {
@@ -254,7 +254,7 @@ const MapboxMap = ({
         .setLngLat([marker.lng, marker.lat])
         .setPopup(popup)
         .addTo(map.current!);
-      
+
       markerPopupsRef.current.push(popup);
       markerRefs.current.push(newMarker);
       newMarker.getElement().addEventListener('click', (e) => {
@@ -285,38 +285,39 @@ const MapboxMap = ({
       }
       return;
     }
+    map.current.on('style.load', () => {
+      if (map.current && !map.current.getSource("routeLine")) {
+        map.current.addSource("routeLine", {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            geometry: route,
+            properties: {},
+          },
+        });
 
-    if (!map.current.getSource("routeLine")) {
-      map.current.addSource("routeLine", {
-        type: "geojson",
-        data: {
+        map.current.addLayer({
+          id: "routeLine",
+          type: "line",
+          source: "routeLine",
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
+          paint: {
+            "line-color": "#0074D9",
+            "line-width": 4,
+          },
+        });
+      } else {
+        // Update route data
+        (map.current?.getSource("routeLine") as mapboxgl.GeoJSONSource)?.setData({
           type: "Feature",
           geometry: route,
           properties: {},
-        },
-      });
-
-      map.current.addLayer({
-        id: "routeLine",
-        type: "line",
-        source: "routeLine",
-        layout: {
-          "line-join": "round",
-          "line-cap": "round",
-        },
-        paint: {
-          "line-color": "#0074D9",
-          "line-width": 4,
-        },
-      });
-    } else {
-      // Update route data
-      (map.current.getSource("routeLine") as mapboxgl.GeoJSONSource).setData({
-        type: "Feature",
-        geometry: route,
-        properties: {},
-      });
-    }
+        });
+      }
+    });
   }, [route, markers]);
 
   return (
@@ -336,7 +337,7 @@ const App = () => {
     legs: any[];
   } | null>(null);
   const [selectedStartLocation, setSelectedStartLocation] = useState<string>("");
-  
+
   const handleNextStop = async () => {
     if (currentWaypointIndex < markers.length - 1 && routeData?.legs) {
       setCurrentWaypointIndex((prevIndex) => prevIndex + 1);
@@ -347,7 +348,7 @@ const App = () => {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        await axios.get(`${BASE_API_URL}/healthcheck`); 
+        await axios.get(`${BASE_API_URL}/healthcheck`);
         setIsBackendReady(true); // Backend is ready
       } catch (error) {
         console.error("Backend is not ready:", error);
@@ -419,11 +420,11 @@ const App = () => {
             destinationMarker = markers[markers.length - 1];
           }
           const directionsData = await optimizeWaypoints(markers);
-          if(directionsData) {
+          if (directionsData) {
             setMarkers(directionsData.optimizedMarkers);
             setRouteData(directionsData);
           }
-          
+
         } else {
           setRouteData(null);
         }
@@ -455,7 +456,7 @@ const App = () => {
       }
       else {
         const updatedRouteData = await optimizeWaypoints(updatedMarkers);
-        if(updatedRouteData) {
+        if (updatedRouteData) {
           setMarkers(updatedRouteData.optimizedMarkers);
           setRouteData(updatedRouteData);
         }
@@ -587,7 +588,7 @@ const App = () => {
             </div>
           )}
         </div>
-        <MarkerMenu fetchMarkers={fetchMarkers} optimizeWaypoints={optimizeWaypoints}  />
+        <MarkerMenu fetchMarkers={fetchMarkers} optimizeWaypoints={optimizeWaypoints} />
         <MarkerTable markers={markers} onDelete={deleteMarker} />
         <div className="controls">
           <button
