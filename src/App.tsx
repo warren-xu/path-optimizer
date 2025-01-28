@@ -28,7 +28,6 @@ const convertToGeoJSON = (encodedPolyline) => {
 };
 
 type MarkerData = {
-  key: string;
   address: string;
   lat: number;
   lng: number;
@@ -100,16 +99,31 @@ const optimizeWaypoints = async (waypoints: MarkerData[]) => {
   return null;
 };
 
-const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: MarkerData[]; route: any; legs: any[]; currentWaypointIndex: number }) => {
+const MapboxMap = ({
+  markers,
+  route,
+  legs,
+  currentWaypointIndex,
+}: {
+  markers: MarkerData[];
+  route: any;
+  legs: any[];
+  currentWaypointIndex: number;
+}) => {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markerRefs = useRef<mapboxgl.Marker[]>([]);
   const temporaryMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const markerElementsRef = useRef<HTMLDivElement[]>([]);
   const markerPopupsRef = useRef<mapboxgl.Popup[]>([]);
+  const markerElementsRef = useRef<HTMLDivElement[]>([]);
+  const [temporaryLocation, setTemporaryLocation] = useState<{
+    lng: number;
+    lat: number;
+    address: string | null;
+  } | null>(null);
+
   const reverseGeocode = async (lng: number, lat: number): Promise<string | null> => {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}`;
-
     try {
       const response = await axios.get(url);
       if (response.status === 200 && response.data.features.length > 0) {
@@ -118,7 +132,6 @@ const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: Ma
     } catch (error) {
       console.error("Error reverse geocoding:", error);
     }
-
     return null;
   };
 
@@ -139,23 +152,65 @@ const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: Ma
         map.current = new mapboxgl.Map({
           container: mapContainer.current as HTMLElement,
           style: "mapbox://styles/mapbox/streets-v11",
-          center: [-79.7196, 43.2272],      // hamilton
-          zoom: 15,
+          center: [-79.3832, 43.6532], // Default to Hamilton
+          zoom: 7,
         });
 
-        // Add built-in navigation control (includes compass rose)
-        const navControl = new mapboxgl.NavigationControl({ visualizePitch: true });
-        map.current.addControl(navControl, "top-right"); // Position it at the top-right corner
-        // Remove temp marker on next map click
-        map.current.on("click", () => {
+        // Add navigation controls
+        map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+        // Add click handler for placing temporary markers
+        map.current.on("click", async (event) => {
+          const clickedElement = event.originalEvent.target as HTMLElement;
+          const isMarkerClick = markerElementsRef.current.some((markerElement) =>
+            markerElement.contains(clickedElement)
+  
+          );
+          if (isMarkerClick) {
+            return;
+          }
+          const { lng, lat } = event.lngLat;
+
+          // Reverse geocode to get address
+          const address = await reverseGeocode(lng, lat);
+
+          // Update temporary location state
+          setTemporaryLocation({ lng, lat, address });
+
+          // Remove the previous temporary marker if it exists
           if (temporaryMarkerRef.current) {
             temporaryMarkerRef.current.remove();
-            temporaryMarkerRef.current = null;
           }
-        })
 
+          // Create a new temporary marker
+          const tempPopup = new mapboxgl.Popup({ offset: 25 }).setHTML(
+            `<div>
+              <h4>Temporary Location</h4>
+              <p><strong>Address:</strong> ${address || "Unknown Address"}</p>
+            </div>`
+          );
+          tempPopup.on("open", () => {      // doesn't work yet
+            const popupElement = tempPopup.getElement();
+            if (popupElement) {
+              const closeButton = popupElement.querySelector(".mapboxgl-popup-close-button") as HTMLButtonElement;
+              if (closeButton) {
+                closeButton.removeAttribute("aria-hidden"); // Remove aria-hidden
+                closeButton.setAttribute("aria-label", "Close popup"); // Add an accessible label
+              }
+            }
+          });
+
+          const tempMarker = new mapboxgl.Marker({ color: "red" })
+            .setLngLat([lng, lat])
+            .setPopup(tempPopup)
+            .addTo(map.current!);
+          
+          tempPopup.addTo(map.current!);
+
+          temporaryMarkerRef.current = tempMarker;
+        });
       } catch (error) {
-        console.error("Error fetching Mapbox token:", error);
+        console.error("Error initializing Mapbox map:", error);
       }
     };
 
@@ -163,41 +218,45 @@ const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: Ma
     return () => map.current?.remove();
   }, []);
 
+  
+
   useEffect(() => {
     if (!map.current) return;
     markerElementsRef.current = [];
     markerPopupsRef.current = [];
     // Clear existing markers
     markerRefs.current.forEach((marker) => marker.remove());
-    markerRefs.current = []; // Reset the markerRefs array
-    // Utility function to close all open popups
+    markerRefs.current = [];
     const closeAllPopups = () => {
-      markerPopupsRef.current.forEach((popup) => popup.remove());
-      if (temporaryMarkerRef.current) {
-        temporaryMarkerRef.current.remove();
-        temporaryMarkerRef.current = null;
-      }
-    };
-    // Add new markers
-    markers.forEach((marker, index) => {
-      const isCurrent = index === currentWaypointIndex;
-      const isNext = index === currentWaypointIndex + 1;
+    markerPopupsRef.current.forEach((popup) => popup.remove());
+    if (temporaryMarkerRef.current) {
+      temporaryMarkerRef.current.remove();
+      temporaryMarkerRef.current = null;
+    }
+  };
 
-      const markerColor = isCurrent
-        ? "green"
-        : isNext
-          ? "blue"
-          : "purple";
+    // Add markers from the markers array
+    markers.forEach((marker, index) => {
+      const markerColor = index === currentWaypointIndex ? "green" : "purple";
 
       const popup = new mapboxgl.Popup().setText(marker.address);
+      popup.on("open", () => {
+        const popupElement = popup.getElement();
+        if (popupElement) {
+          const closeButton = popupElement.querySelector(".mapboxgl-popup-close-button") as HTMLButtonElement;
+          if (closeButton) {
+            closeButton.removeAttribute("aria-hidden"); // Remove aria-hidden
+            closeButton.setAttribute("aria-label", "Close popup"); // Add an accessible label
+          }
+        }
+      });
       const newMarker = new mapboxgl.Marker({ color: markerColor })
         .setLngLat([marker.lng, marker.lat])
-        .setPopup(popup) // Attach popup
-        .addTo(map.current!);/*  */
-
+        .setPopup(popup)
+        .addTo(map.current!);
+      
       markerPopupsRef.current.push(popup);
-
-      markerRefs.current.push(newMarker); // Store reference to the marker
+      markerRefs.current.push(newMarker);
       newMarker.getElement().addEventListener('click', (e) => {
         e.stopPropagation();
 
@@ -209,64 +268,14 @@ const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: Ma
         });
 
         popup.addTo(map.current!);
-      });
-
-
-      // Map clicked -> make a temp marker (testing purposes only)
-      map.current?.on("click", async (event) => {
-        const clickedElement = event.originalEvent.target as HTMLElement;
-        const isMarkerClick = markerElementsRef.current.some((markerElement) =>
-          markerElement.contains(clickedElement)
-
-        );
-        if (isMarkerClick) {
-          return;
-        }
-
-        closeAllPopups();
-        const { lng, lat } = event.lngLat;
-        // Reverse geocode
-        const address = await reverseGeocode(lng, lat);
-        // setClickedLocation({ lng, lat, address });
-
-        if (temporaryMarkerRef.current) {
-          temporaryMarkerRef.current.remove();
-        }
-
-        // Create a temp marker
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          `<div>
-          <h4>Clicked Location</h4>
-          <p><strong>Address:</strong> ${address}</p>
-        </div>`
-        )
-        const tempMarker = new mapboxgl.Marker({ color: "red" })
-          .setLngLat([lng, lat])
-          .setPopup(popup)
-          .addTo(map.current!);
-
-        // open popup
-        popup.on("open", () => {
-          const popupElement = popup.getElement();
-          if (popupElement) {
-            const closeButton = popupElement.querySelector(".mapboxgl-popup-close-button") as HTMLButtonElement;
-            if (closeButton) {
-              closeButton.removeAttribute("aria-hidden"); // Remove aria-hidden
-            }
-          }
-        });
-        if (map.current) {
-          tempMarker.getPopup()?.addTo(map.current);
-        }
-
-        temporaryMarkerRef.current = tempMarker;
-      });
+      })
     });
   }, [markers, currentWaypointIndex]);
 
   useEffect(() => {
     if (!map.current) return;
 
+    // Manage the route line
     if (!route || markers.length < 2) {
       if (map.current.getLayer("routeLine")) {
         map.current.removeLayer("routeLine");
@@ -274,14 +283,16 @@ const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: Ma
       if (map.current.getSource("routeLine")) {
         map.current.removeSource("routeLine");
       }
-      return; // Exit the effect early since there's no route to draw
-    } else if (!map.current.getSource("routeLine")) {
+      return;
+    }
+
+    if (!map.current.getSource("routeLine")) {
       map.current.addSource("routeLine", {
         type: "geojson",
         data: {
           type: "Feature",
-          geometry: route, // Use the geometry from the Directions API
-          properties: {}
+          geometry: route,
+          properties: {},
         },
       });
 
@@ -299,22 +310,23 @@ const MapboxMap = ({ markers, route, legs, currentWaypointIndex }: { markers: Ma
         },
       });
     } else {
-      // Update the routeLine data
+      // Update route data
       (map.current.getSource("routeLine") as mapboxgl.GeoJSONSource).setData({
         type: "Feature",
-        geometry: route, // Use the updated geometry
+        geometry: route,
         properties: {},
       });
     }
-
-  }, [route, markers, legs, currentWaypointIndex]);
+  }, [route, markers]);
 
   return (
     <div ref={mapContainer} style={{ width: "100%", height: "400px" }} />
   );
 };
 
+
 const App = () => {
+  const [isBackendReady, setIsBackendReady] = useState(false);
   const [markers, setMarkers] = useState<MarkerData[]>([]);
   const [currentWaypointIndex, setCurrentWaypointIndex] = useState(0);
   const [routeData, setRouteData] = useState<{
@@ -330,6 +342,21 @@ const App = () => {
       setCurrentWaypointIndex((prevIndex) => prevIndex + 1);
     }
   };
+
+  // Check if the backend is available
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        await axios.get(`${BASE_API_URL}/healthcheck`); 
+        setIsBackendReady(true); // Backend is ready
+      } catch (error) {
+        console.error("Backend is not ready:", error);
+        setTimeout(checkBackend, 3000); // Retry after 3 seconds
+      }
+    };
+
+    checkBackend();
+  }, []);
 
   useEffect(() => {
     fetchMarkers();
@@ -352,18 +379,14 @@ const App = () => {
         if (optimizedData) {
           console.log("Setting optimized routeData:", optimizedData);
           setMarkers(optimizedData.optimizedMarkers);
-
           setRouteData(optimizedData);
         }
       }
+      setCurrentWaypointIndex(0);
     } catch (error) {
       console.error("Error fetching markers:", error);
     }
   };
-
-  useEffect(() => {
-    fetchMarkers();
-  }, []);
 
   useEffect(() => {
     const fetchUpdatedRoute = async () => {
@@ -376,10 +399,6 @@ const App = () => {
         if (!selectedStartLocation) {
           setSelectedStartLocation(markers[0].address);
         }
-
-
-        const directions = await optimizeWaypoints(markers);
-        setRouteData(directions);
       }
     };
 
@@ -400,7 +419,11 @@ const App = () => {
             destinationMarker = markers[markers.length - 1];
           }
           const directionsData = await optimizeWaypoints(markers);
-          setRouteData(directionsData);
+          if(directionsData) {
+            setMarkers(directionsData.optimizedMarkers);
+            setRouteData(directionsData);
+          }
+          
         } else {
           setRouteData(null);
         }
@@ -432,7 +455,10 @@ const App = () => {
       }
       else {
         const updatedRouteData = await optimizeWaypoints(updatedMarkers);
-        setRouteData(updatedRouteData); // Update route data
+        if(updatedRouteData) {
+          setMarkers(updatedRouteData.optimizedMarkers);
+          setRouteData(updatedRouteData);
+        }
         setCurrentWaypointIndex(0); // Reset to the first waypoint
       }
     } catch (error) {
@@ -478,6 +504,14 @@ const App = () => {
       setRouteData(null);
     }
   };
+
+  if (!isBackendReady) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontSize: "24px" }}>
+        Backend Loading...
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -553,7 +587,7 @@ const App = () => {
             </div>
           )}
         </div>
-        <MarkerMenu fetchMarkers={fetchMarkers} optimizeWaypoints={optimizeWaypoints} />
+        <MarkerMenu fetchMarkers={fetchMarkers} optimizeWaypoints={optimizeWaypoints}  />
         <MarkerTable markers={markers} onDelete={deleteMarker} />
         <div className="controls">
           <button
